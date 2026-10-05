@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explore in 3D</title>
+<meta name="theme-color" content="#F4F6F9">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
+<style>
+  :root {
+    --bg: #F4F6F9;
+    --ink: #161B22;
+    --muted: #5B6573;
+    --accent: #2457F5;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; font-weight: 650; letter-spacing: -0.01em; }
+  .hint { margin: 6px 0 16px; color: var(--muted); font-size: 1rem; }
+
+  .stage {
+    position: relative;
+    height: 70vh;
+    height: clamp(360px, 70dvh, 640px);
+    border-radius: 20px;
+    overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 30%, #FFFFFF 0%, #E6EBF2 100%);
+  }
+  model-viewer {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    --poster-color: transparent;
+    --progress-bar-color: var(--accent);
+    --progress-bar-height: 3px;
+  }
+  model-viewer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .error {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--ink);
+    background: rgba(244, 246, 249, 0.92);
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Explore in 3D</h1>
+  <p class="hint">Drag to rotate. Pinch to zoom.</p>
+
+  <div class="stage">
+    <model-viewer
+      src="object.glb"
+      alt="3D model of the object"
+      camera-controls
+      touch-action="pan-y"
+      auto-rotate
+      environment-image="neutral"
+      shadow-intensity="1">
+    </model-viewer>
+    <div class="error" id="error" role="alert" hidden>
+      The 3D model couldn't be loaded. Check your connection and reload the page.
+    </div>
+  </div>
+</main>
+
+<script>
+  const viewer = document.querySelector('model-viewer');
+  const errorBox = document.getElementById('error');
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    viewer.removeAttribute('auto-rotate');
+  }
+
+  viewer.addEventListener('error', (e) => {
+    console.error('Model failed to load:', e.detail);
+    errorBox.hidden = false;
+  });
+</script>
+</body>
+</html>
