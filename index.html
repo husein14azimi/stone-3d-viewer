@@ -9,6 +9,7 @@
 <style>
   :root {
     --bg: #F4F6F9;
+    --tile: #E9EDF3;
     --ink: #161B22;
     --muted: #5B6573;
     --accent: #2457F5;
@@ -20,75 +21,250 @@
     background: var(--bg);
     color: var(--ink);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+    padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   }
   main { max-width: 960px; margin: 0 auto; }
   h1 { margin: 0; font-size: 1.5rem; line-height: 1.2; font-weight: 650; letter-spacing: -0.01em; }
+  h1:focus { outline: none; }
   .hint { margin: 6px 0 16px; color: var(--muted); font-size: 1rem; }
+  .desc { margin: 6px 0 0; font-size: 1rem; line-height: 1.4; }
+  .msg { color: var(--muted); }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+  /* Grid */
+  .grid {
+    list-style: none; margin: 0; padding: 0;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px 14px;
+  }
+  @media (min-width: 600px) {
+    .grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 24px 18px; }
+  }
+  .tile { display: block; color: inherit; text-decoration: none; border-radius: 16px; }
+  .thumb {
+    aspect-ratio: 1; border-radius: 16px; background: var(--tile);
+    overflow: hidden; display: grid; place-items: center;
+    transition: transform .12s;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile:active .thumb { transform: scale(.97); }
+  .name { display: block; margin: 10px 2px 0; font-size: 1rem; font-weight: 600; line-height: 1.3; }
+
+  .btn, .back {
+    font: inherit; font-weight: 550; color: var(--ink); background: none;
+    border: 0; border-radius: 999px; cursor: pointer; min-height: 44px;
+  }
+  .btn { padding: 0 18px; background: var(--tile); }
+  .back { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 8px -8px; padding: 0 14px 0 8px; }
+  .back:active { background: var(--tile); }
+
+  /* Viewer */
   .stage {
     position: relative;
     height: 70vh;
     height: clamp(360px, 70dvh, 640px);
-    border-radius: 20px;
-    overflow: hidden;
+    border-radius: 20px; overflow: hidden;
     background: radial-gradient(120% 90% at 50% 30%, #FFFFFF 0%, #E6EBF2 100%);
   }
+  .poster {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; transition: opacity .25s;
+  }
+  .poster.gone { opacity: 0; }
   model-viewer {
-    width: 100%;
-    height: 100%;
-    background: transparent;
+    position: relative; z-index: 1;
+    width: 100%; height: 100%; background: transparent;
     --poster-color: transparent;
     --progress-bar-color: var(--accent);
     --progress-bar-height: 3px;
   }
-  model-viewer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-
   .error {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    text-align: center;
-    color: var(--ink);
+    position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center; padding: 24px; text-align: center;
     background: rgba(244, 246, 249, 0.92);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .thumb, .poster { transition: none; }
   }
 </style>
 </head>
 <body>
 <main>
-  <h1>Explore in 3D</h1>
-  <p class="hint">Drag to rotate. Pinch to zoom.</p>
+  <section id="list">
+    <h1 tabindex="-1">Explore in 3D</h1>
+    <p class="hint">Choose an object to view it in 3D.</p>
+    <p id="listmsg" class="msg">Loading models…</p>
+    <button id="retry" class="btn" type="button" hidden>Try again</button>
+    <ul id="grid" class="grid"></ul>
+  </section>
 
-  <div class="stage">
-    <model-viewer
-      src="object.glb"
-      alt="3D model of the object"
-      camera-controls
-      touch-action="pan-y"
-      auto-rotate
-      environment-image="neutral"
-      shadow-intensity="1">
-    </model-viewer>
-    <div class="error" id="error" role="alert" hidden>
-      The 3D model couldn't be loaded. Check your connection and reload the page.
+  <section id="viewerview" hidden>
+    <button id="back" class="back" type="button">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      All models
+    </button>
+    <h1 id="mtitle" tabindex="-1"></h1>
+    <p id="mdesc" class="desc" hidden></p>
+    <p class="hint">Drag to rotate. Pinch to zoom.</p>
+    <div class="stage">
+      <img id="poster" class="poster" alt="">
+      <model-viewer
+        loading="eager"
+        camera-controls
+        touch-action="pan-y"
+        auto-rotate
+        environment-image="neutral"
+        shadow-intensity="1">
+      </model-viewer>
+      <div class="error" id="error" role="alert" hidden>
+        The 3D model couldn't be loaded. Check your connection and reload the page.
+      </div>
     </div>
-  </div>
+  </section>
+
+  <section id="notfound" hidden>
+    <h1 tabindex="-1">Model not found</h1>
+    <p class="msg">This link doesn't match any model. <a href="#/">See all models</a></p>
+  </section>
 </main>
 
 <script>
-  const viewer = document.querySelector('model-viewer');
-  const errorBox = document.getElementById('error');
+  const BASE = 'public/3d/';
+  const $ = (s) => document.querySelector(s);
+  const listView = $('#list'), viewerView = $('#viewerview'), notFoundView = $('#notfound');
+  const grid = $('#grid'), listMsg = $('#listmsg'), retry = $('#retry');
+  const mv = $('model-viewer'), poster = $('#poster'), errBox = $('#error');
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    viewer.removeAttribute('auto-rotate');
+  let models = [], ready = false, current = listView, listScroll = 0, cameFromList = false;
+
+  const CUBE = '<svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="#9AA5B5" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M24 6 8 14v20l16 8 16-8V14L24 6Z"/><path d="m8 14 16 8 16-8M24 22v20"/></svg>';
+
+  const urls = (m) => ({
+    glb: BASE + (m.file || m.id + '.glb'),
+    thumb: BASE + (m.thumb || 'thumbs/' + m.id + '.webp'),
+  });
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) mv.removeAttribute('auto-rotate');
+
+  function setView(v) {
+    [listView, viewerView, notFoundView].forEach((x) => { x.hidden = x !== v; });
+    current = v;
+    v.querySelector('h1').focus({ preventScroll: true });
   }
 
-  viewer.addEventListener('error', (e) => {
+  function renderGrid() {
+    grid.replaceChildren(...models.map((m) => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.className = 'tile';
+      a.href = '#/' + encodeURIComponent(m.id);
+      a.addEventListener('click', () => { cameFromList = true; });
+
+      const thumb = document.createElement('div');
+      thumb.className = 'thumb';
+      const img = new Image();
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.addEventListener('error', () => { thumb.innerHTML = CUBE; });
+      img.src = urls(m).thumb;
+      thumb.append(img);
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = m.title || m.id;
+
+      a.append(thumb, name);
+      li.append(a);
+      return li;
+    }));
+  }
+
+  function leaveViewer() {
+    mv.removeAttribute('src'); // frees the model's memory on phones
+    errBox.hidden = true;
+  }
+
+  function showList() {
+    leaveViewer();
+    cameFromList = false;
+    document.title = 'Explore in 3D';
+    setView(listView);
+    scrollTo(0, listScroll);
+  }
+
+  function showViewer(m) {
+    if (current === listView) listScroll = scrollY;
+    const u = urls(m);
+    const title = m.title || m.id;
+    errBox.hidden = true;
+    poster.hidden = false;
+    poster.classList.remove('gone');
+    poster.src = u.thumb;
+    mv.alt = '3D model of ' + title;
+    mv.src = u.glb;
+    $('#mtitle').textContent = title;
+    const desc = $('#mdesc');
+    desc.textContent = m.description || '';
+    desc.hidden = !m.description;
+    document.title = title + ' | Explore in 3D';
+    setView(viewerView);
+    scrollTo(0, 0);
+  }
+
+  function showNotFound() {
+    if (current === listView) listScroll = scrollY;
+    leaveViewer();
+    document.title = 'Not found | Explore in 3D';
+    setView(notFoundView);
+    scrollTo(0, 0);
+  }
+
+  function route() {
+    let id = '';
+    try { id = decodeURIComponent(location.hash.replace(/^#\/?/, '')); } catch (e) {}
+    if (!id) return showList();
+    const m = models.find((x) => x.id === id);
+    m ? showViewer(m) : showNotFound();
+  }
+
+  mv.addEventListener('load', () => poster.classList.add('gone'));
+  mv.addEventListener('error', (e) => {
     console.error('Model failed to load:', e.detail);
-    errorBox.hidden = false;
+    errBox.hidden = false;
   });
+  poster.addEventListener('error', () => { poster.hidden = true; });
+
+  $('#back').addEventListener('click', () => {
+    if (cameFromList) history.back();
+    else location.hash = '#/';
+  });
+  addEventListener('hashchange', () => { if (ready) route(); });
+  retry.addEventListener('click', init);
+
+  async function init() {
+    listMsg.hidden = false;
+    listMsg.textContent = 'Loading models…';
+    retry.hidden = true;
+    try {
+      const r = await fetch(BASE + 'models.json', { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const seen = new Set();
+      models = (await r.json()).filter((m) => m && m.id && !seen.has(m.id) && seen.add(m.id));
+    } catch (e) {
+      console.error('models.json failed:', e);
+      listMsg.textContent = "The model list couldn't be loaded. Check your connection and try again.";
+      retry.hidden = false;
+      return;
+    }
+    renderGrid();
+    listMsg.hidden = models.length > 0;
+    if (!models.length) listMsg.textContent = 'No models yet.';
+    ready = true;
+    route();
+  }
+
+  init();
 </script>
 </body>
 </html>

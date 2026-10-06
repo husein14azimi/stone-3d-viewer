@@ -1,0 +1,1 @@
+in the models.json, the "file" and "thumb" are address overrides.
