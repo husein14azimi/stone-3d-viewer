@@ -83,8 +83,52 @@
     display: grid; place-items: center; padding: 24px; text-align: center;
     background: rgba(244, 246, 249, 0.92);
   }
+  /* Style controls: solid white so they stay readable on every preset */
+  .style-btn {
+    position: absolute; right: 12px; bottom: 12px; z-index: 3;
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 44px; padding: 0 16px 0 12px;
+    font: inherit; font-weight: 550; color: var(--ink);
+    background: #FFFFFF; border: 0; border-radius: 999px; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 4px 14px rgba(0,0,0,.18);
+  }
+  dialog.sheet {
+    width: 100%; max-width: 520px; max-height: 85dvh;
+    margin: auto auto 0; padding: 0; border: 0;
+    border-radius: 24px 24px 0 0; background: #FFFFFF; color: var(--ink);
+  }
+  dialog.sheet::backdrop { background: rgba(22, 27, 34, .45); }
+  @media (min-width: 600px) { dialog.sheet { margin: auto; border-radius: 24px; } }
+  .sheet-body { padding: 20px 20px max(20px, env(safe-area-inset-bottom)); }
+  .sheet-body h2 { margin: 0 0 16px; font-size: 1.25rem; }
+  .group-label { margin: 0 0 10px; color: var(--muted); font-size: .9375rem; }
+  .swatches { display: flex; gap: 8px; margin-bottom: 20px; }
+  .swatch {
+    flex: 1; display: grid; justify-items: center; gap: 8px; padding: 6px 0;
+    font: inherit; font-size: .9375rem; color: var(--ink);
+    background: none; border: 0; border-radius: 14px; cursor: pointer;
+  }
+  .dot { width: 52px; height: 52px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); }
+  .swatch[aria-pressed="true"] { font-weight: 650; }
+  .swatch[aria-pressed="true"] .dot {
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.14), 0 0 0 3px #FFFFFF, 0 0 0 5px var(--accent);
+  }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin-bottom: 16px; }
+  .switch-row input {
+    appearance: none; -webkit-appearance: none; position: relative;
+    width: 52px; height: 32px; margin: 0; border-radius: 999px;
+    background: #C5CCD8; cursor: pointer; transition: background .15s;
+  }
+  .switch-row input::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s;
+  }
+  .switch-row input:checked { background: var(--accent); }
+  .switch-row input:checked::after { transform: translateX(20px); }
+  .sheet-body .btn { width: 100%; background: var(--ink); color: #fff; }
+
   @media (prefers-reduced-motion: reduce) {
-    .thumb, .poster { transition: none; }
+    .thumb, .poster, .switch-row input, .switch-row input::after { transition: none; }
   }
 </style>
 </head>
@@ -112,14 +156,30 @@
         loading="eager"
         camera-controls
         touch-action="pan-y"
-        auto-rotate
         environment-image="neutral"
         shadow-intensity="1">
       </model-viewer>
       <div class="error" id="error" role="alert" hidden>
         The 3D model couldn't be loaded. Check your connection and reload the page.
       </div>
+      <button id="style-btn" class="style-btn" type="button" aria-haspopup="dialog">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        Style
+      </button>
     </div>
+
+    <dialog id="sheet" class="sheet" aria-labelledby="sheet-title">
+      <div class="sheet-body">
+        <h2 id="sheet-title">Style</h2>
+        <p class="group-label" id="bg-label">Background</p>
+        <div class="swatches" id="swatches" role="group" aria-labelledby="bg-label"></div>
+        <label class="switch-row">
+          <span>Auto-rotate</span>
+          <input type="checkbox" id="rotate" role="switch">
+        </label>
+        <button id="sheet-close" class="btn" type="button">Done</button>
+      </div>
+    </dialog>
   </section>
 
   <section id="notfound" hidden>
@@ -144,7 +204,60 @@
     thumb: BASE + (m.thumb || 'thumbs/' + m.id + '.webp'),
   });
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) mv.removeAttribute('auto-rotate');
+  /* Style presets: change the viewer stage only, never the rest of the page */
+  const PRESETS = {
+    studio: { label: 'Studio', swatch: '#E6EBF2', exposure: 1,    shadow: 1,
+              bg: 'radial-gradient(120% 90% at 50% 30%, #FFFFFF 0%, #E6EBF2 100%)' },
+    white:  { label: 'White',  swatch: '#FFFFFF', exposure: 1.05, shadow: 0.8,
+              bg: '#FFFFFF' },
+    stone:  { label: 'Stone',  swatch: '#DDD9D2', exposure: 1.05, shadow: 1,
+              bg: 'radial-gradient(120% 90% at 50% 30%, #EFEDE9 0%, #D9D5CE 100%)' },
+    night:  { label: 'Night',  swatch: '#1B2029', exposure: 1.25, shadow: 0.5,
+              bg: 'radial-gradient(120% 90% at 50% 30%, #2A3140 0%, #12151B 100%)' },
+  };
+  const STORE = 'viewer-style';
+  const stage = $('.stage'), sheet = $('#sheet'), rotate = $('#rotate'), swatches = $('#swatches');
+  const prefs = { preset: 'studio', rotate: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+
+  try { // storage can be empty or blocked (private mode), so fall back silently
+    const s = JSON.parse(localStorage.getItem(STORE));
+    if (s && PRESETS[s.preset]) prefs.preset = s.preset;
+    if (s && typeof s.rotate === 'boolean') prefs.rotate = s.rotate;
+  } catch (e) {}
+
+  function savePrefs() {
+    try { localStorage.setItem(STORE, JSON.stringify(prefs)); } catch (e) {}
+  }
+
+  function applyPrefs() {
+    const p = PRESETS[prefs.preset];
+    stage.style.background = p.bg;
+    // attributes, not properties: safe even if model-viewer hasn't finished loading
+    mv.setAttribute('exposure', p.exposure);
+    mv.setAttribute('shadow-intensity', p.shadow);
+    mv.toggleAttribute('auto-rotate', prefs.rotate);
+    rotate.checked = prefs.rotate;
+    swatches.querySelectorAll('button').forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.preset === prefs.preset)));
+  }
+
+  Object.entries(PRESETS).forEach(([key, p]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.dataset.preset = key;
+    b.innerHTML = '<span class="dot"></span><span class="lbl"></span>';
+    b.querySelector('.dot').style.background = p.swatch;
+    b.querySelector('.lbl').textContent = p.label;
+    b.addEventListener('click', () => { prefs.preset = key; applyPrefs(); savePrefs(); });
+    swatches.append(b);
+  });
+
+  rotate.addEventListener('change', () => { prefs.rotate = rotate.checked; applyPrefs(); savePrefs(); });
+  $('#style-btn').addEventListener('click', () => sheet.showModal());
+  $('#sheet-close').addEventListener('click', () => sheet.close());
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); }); // backdrop tap
+  applyPrefs();
 
   function setView(v) {
     [listView, viewerView, notFoundView].forEach((x) => { x.hidden = x !== v; });
@@ -183,6 +296,7 @@
   function leaveViewer() {
     mv.removeAttribute('src'); // frees the model's memory on phones
     errBox.hidden = true;
+    if (sheet.open) sheet.close();
   }
 
   function showList() {
@@ -201,8 +315,8 @@
     poster.hidden = false;
     poster.classList.remove('gone');
     poster.src = u.thumb;
-    mv.alt = '3D model of ' + title;
-    mv.src = u.glb;
+    mv.setAttribute('alt', '3D model of ' + title);
+    mv.setAttribute('src', u.glb);
     $('#mtitle').textContent = title;
     const desc = $('#mdesc');
     desc.textContent = m.description || '';
