@@ -5,8 +5,23 @@
     "description": "Stone Fountain"
   },
   {
+    "id": "fountain2",
+    "title": "Fountain (no environment)",
+    "description": "Stone Fountain"
+  },
+  {
     "id": "eagle",
     "title": "Eagle",
     "description": "Stone Eagle"
+  },
+  {
+    "id": "eagle2",
+    "title": "Eagle (no environment)",
+    "description": "Stone Eagle"
+  },
+  {
+    "id": "bench",
+    "title": "Bench",
+    "description": "Stone Bench"
   }
 ]
