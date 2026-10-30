@@ -20,6 +20,21 @@
     "description": "Stone Eagle"
   },
   {
+    "id": "tabletopFountain",
+    "title": "Tabletop Fountain",
+    "description": "Tabletop Fountain"
+  },
+  {
+    "id": "kurna",
+    "title": "Kurna (Turkish Basin)",
+    "description": "Kurna (Turkish Basin)"
+  },
+  {
+    "id": "lamassu",
+    "title": "Lamassu (Gopat)",
+    "description": "Lamassu (Gopat)"
+  },
+  {
     "id": "bench",
     "title": "Bench",
     "description": "Stone Bench"
